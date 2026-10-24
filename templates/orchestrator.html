@@ -124,6 +124,28 @@
 
             logMsg(`[ROUND ${r}] Global Model Eval - Acc: ${currentAcc.toFixed(2)}% | Weights Clipped & Noised`);
         }
+
+        // --- ADD THIS TO SAVE TO DATABASE ---
+        try {
+            await fetch('/api/save_simulation', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    rounds: rounds,
+                    noise: noise,
+                    epsilon: parseFloat(document.getElementById('eps-val').innerText),
+                    accuracy: parseFloat(currentAcc.toFixed(2))
+                })
+            });
+            logMsg(`[DB] Simulation metrics successfully logged to audit database.`);
+        } catch (e) {
+            logMsg(`[DB_ERROR] Failed to log metrics. Are you an Admin?`, true);
+        }
+        // ------------------------------------
+
+        btn.disabled = false;
+        logMsg(`[SUCCESS] FL Session complete. Final Privacy Accuracy: ${currentAcc.toFixed(2)}%`);
+
         btn.disabled = false;
         logMsg(`[SUCCESS] FL Session complete. Final Privacy Accuracy: ${currentAcc.toFixed(2)}%`);
     }

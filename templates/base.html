@@ -16,20 +16,33 @@
                 <i class="bi bi-shield-lock-fill me-2"></i>FedGuard-IoT
             </a>
             <div class="collapse navbar-collapse">
+                {% if current_user.is_authenticated %}
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                     <li class="nav-item"><a class="nav-link" href="/"><i class="bi bi-speedometer2 me-1"></i> Dashboard</a></li>
                     <li class="nav-item"><a class="nav-link" href="/inference"><i class="bi bi-radar me-1"></i> Live Inference</a></li>
                     <li class="nav-item"><a class="nav-link" href="/orchestrator"><i class="bi bi-cpu me-1"></i> FL Orchestrator</a></li>
                 </ul>
-                <span class="badge bg-success bg-opacity-25 text-success border border-success d-flex align-items-center px-3 py-2">
-                    <span class="spinner-grow spinner-grow-sm me-2 text-success" role="status" aria-hidden="true" style="width: 0.5rem; height: 0.5rem;"></span>
-                    System Secure
-                </span>
+                <div class="d-flex align-items-center">
+                    <span class="text-light me-3"><i class="bi bi-person-circle me-1"></i> {{ current_user.username }} ({{ current_user.role|title }})</span>
+                    <a href="/logout" class="btn btn-outline-danger btn-sm">Logout</a>
+                </div>
+                {% endif %}
             </div>
         </div>
     </nav>
 
     <div class="container-fluid px-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
         {% block content %}{% endblock %}
     </div>
 

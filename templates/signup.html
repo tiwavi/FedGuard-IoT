@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row justify-content-center align-items-center" style="min-height: 70vh;">
+    <div class="col-md-4">
+        <div class="card card-custom p-4">
+            <h3 class="text-white text-center mb-4"><i class="bi bi-person-plus text-info"></i> Register Node</h3>
+            <form method="POST">
+                <div class="mb-3">
+                    <label class="form-label text-muted">Username</label>
+                    <input type="text" name="username" class="form-control bg-dark text-white border-secondary" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-muted">Password</label>
+                    <input type="password" name="password" class="form-control bg-dark text-white border-secondary" required>
+                </div>
+                <div class="mb-4">
+                    <label class="form-label text-muted">Network Role</label>
+                    <select name="role" class="form-select bg-dark text-white border-secondary">
+                        <option value="user">Standard Analyst</option>
+                        <option value="admin">System Administrator</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary w-100 fw-bold">Register Identity</button>
+            </form>
+            <div class="text-center mt-3">
+                <a href="/login" class="text-muted small">Already registered? Log in</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

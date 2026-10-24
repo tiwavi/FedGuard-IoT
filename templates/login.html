@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row justify-content-center align-items-center" style="min-height: 70vh;">
+    <div class="col-md-4">
+        <div class="card card-custom p-4">
+            <h3 class="text-white text-center mb-4"><i class="bi bi-shield-lock text-info"></i> Secure Login</h3>
+            <form method="POST">
+                <div class="mb-3">
+                    <label class="form-label text-muted">Username</label>
+                    <input type="text" name="username" class="form-control bg-dark text-white border-secondary" required>
+                </div>
+                <div class="mb-4">
+                    <label class="form-label text-muted">Password</label>
+                    <input type="password" name="password" class="form-control bg-dark text-white border-secondary" required>
+                </div>
+                <button type="submit" class="btn btn-info w-100 fw-bold">Authenticate</button>
+            </form>
+            <div class="text-center mt-3">
+                <a href="/signup" class="text-muted small">Request Access (Sign Up)</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
