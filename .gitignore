@@ -1,0 +1,20 @@
+# Environments
+venv/
+env/
+.env
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+
+# VS Code
+.vscode/
+
+# Datasets (CRITICAL: Do not push large data to GitHub)
+*.csv
+processed_data/
+DNN-EdgeIIoT-dataset.csv
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
