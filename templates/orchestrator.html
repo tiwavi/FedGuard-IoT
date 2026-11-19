@@ -1,54 +1,107 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="row g-4 mb-4">
-    <!-- Configuration & Epsilon -->
+    <!-- Configuration, Epsilon & Byzantine Controls -->
     <div class="col-lg-4">
         <div class="card card-custom h-100">
-            <div class="card-header-custom text-white"><i class="bi bi-sliders me-2 text-primary"></i> FL Orchestrator</div>
+            <div class="card-header-custom">
+                <i class="bi bi-sliders me-2 text-primary"></i> FL Orchestrator & Security
+            </div>
             <div class="card-body">
                 <label class="form-label text-light small fw-bold">Communication Rounds: <span id="v-rounds" class="text-info">10</span></label>
                 <input type="range" class="form-range mb-3" id="sim-rounds" min="5" max="20" value="10" oninput="document.getElementById('v-rounds').innerText = this.value; updateMath();">
 
                 <label class="form-label text-light small fw-bold">Noise Multiplier (σ): <span id="v-noise" class="text-info">0.01</span></label>
-                <input type="range" class="form-range mb-4" id="sim-noise" min="0.001" max="0.1" step="0.001" value="0.01" oninput="document.getElementById('v-noise').innerText = this.value; updateMath();">
+                <input type="range" class="form-range mb-3" id="sim-noise" min="0.001" max="0.1" step="0.001" value="0.01" oninput="document.getElementById('v-noise').innerText = this.value; updateMath();">
 
-                <div class="alert alert-dark border-secondary mb-4">
-                    <h6 class="text-info"><i class="bi bi-calculator"></i> Differential Privacy Budget (ε)</h6>
-                    <p class="small text-muted mb-1">Calculated via Moments Accountant for the selected rounds:</p>
-                    <h3 class="text-white mb-0">ε ≈ <span id="eps-val">2.34</span></h3>
+                <!-- Byzantine Attack Simulator Box -->
+                <div class="p-3 rounded mb-3" style="border: 1px solid var(--border-color); background: rgba(239, 68, 68, 0.06);">
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" id="toggle-attack" onchange="updateNodeStatus()">
+                        <label class="form-check-label fw-bold text-danger small" for="toggle-attack">
+                            <i class="bi bi-bug-fill me-1"></i> Simulate Byzantine Attack (Node 1)
+                        </label>
+                    </div>
+                    <label class="form-label text-muted small mb-1">Aggregation Defense Strategy</label>
+                    <select id="defense-mode" class="form-select form-select-sm" onchange="updateNodeStatus()">
+                        <option value="none">Standard FedAvg (Vulnerable)</option>
+                        <option value="krum">Multi-Krum / Norm Clipping (Defended)</option>
+                    </select>
                 </div>
 
-                <button id="btn-train" class="btn btn-primary w-100 fw-bold py-2 mb-3" onclick="runSimulation()">
+                <!-- Epsilon Calculator -->
+                <div class="p-3 rounded mb-3" style="border: 1px solid var(--border-color);">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="text-info small fw-bold"><i class="bi bi-calculator me-1"></i> Privacy Budget (ε)</div>
+                            <div class="text-muted" style="font-size: 0.75rem;">Moments Accountant</div>
+                        </div>
+                        <h3 class="text-light mb-0">ε ≈ <span id="eps-val">2.34</span></h3>
+                    </div>
+                </div>
+
+                <button id="btn-train" class="btn btn-info w-100 fw-bold py-2 mb-3" onclick="runSimulation()">
                     <i class="bi bi-play-fill me-1"></i> Execute Federated Training
                 </button>
 
-                <div class="progress" style="height: 8px; background-color: #374151;">
+                <div class="progress" style="height: 8px; background-color: rgba(100,116,139,0.2);">
                     <div id="sim-progress" class="progress-bar bg-info" style="width: 0%; transition: width 0.4s;"></div>
                 </div>
             </div>
         </div>
     </div>
     
-    <!-- Live Convergence Graph -->
+    <!-- Live Convergence Graph & Node Health -->
     <div class="col-lg-8">
-        <div class="card card-custom h-100">
-            <div class="card-header-custom text-white d-flex justify-content-between align-items-center">
+        <div class="card card-custom h-100 d-flex flex-column">
+            <div class="card-header-custom d-flex justify-content-between align-items-center">
                 <span><i class="bi bi-graph-up text-success me-2"></i> Global Model Convergence</span>
-                <button class="btn btn-sm btn-outline-secondary text-light" onclick="resetChart()"><i class="bi bi-arrow-clockwise"></i> Clear</button>
+                <div>
+                    <span id="sim-status-badge" class="badge bg-secondary me-2">Idle</span>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="resetChart()"><i class="bi bi-arrow-clockwise"></i> Clear</button>
+                </div>
             </div>
-            <div class="card-body">
-                <canvas id="learningCurve" height="80"></canvas>
+            <div class="card-body d-flex flex-column">
+                <!-- Live 4-Node Health Strip -->
+                <div class="row g-2 mb-3 text-center">
+                    <div class="col-3">
+                        <div id="node-1-box" class="p-2 rounded small fw-bold" style="border: 1px solid #10b981; color: #10b981;">
+                            <i class="bi bi-hdd-network me-1"></i> Node 1: Clean
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="p-2 rounded small fw-bold" style="border: 1px solid #10b981; color: #10b981;">
+                            <i class="bi bi-hdd-network me-1"></i> Node 2: Clean
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="p-2 rounded small fw-bold" style="border: 1px solid #10b981; color: #10b981;">
+                            <i class="bi bi-hdd-network me-1"></i> Node 3: Clean
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="p-2 rounded small fw-bold" style="border: 1px solid #10b981; color: #10b981;">
+                            <i class="bi bi-hdd-network me-1"></i> Node 4: Clean
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chart Container -->
+                <div style="flex-grow: 1; min-height: 280px; position: relative;">
+                    <canvas id="learningCurve"></canvas>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
+<!-- Orchestrator Console -->
 <div class="row">
     <div class="col-12">
         <div class="card card-custom">
-            <div class="card-header-custom text-white"><i class="bi bi-terminal-fill text-danger me-2"></i> Orchestrator Console</div>
+            <div class="card-header-custom"><i class="bi bi-terminal-fill text-danger me-2"></i> Orchestrator Console</div>
             <div class="card-body p-0">
-                <div id="terminal" class="terminal border-0 rounded-0 rounded-bottom" style="height: 200px;">
+                <div id="terminal" class="terminal border-0 rounded-0 rounded-bottom" style="height: 210px;">
                     [SYSTEM] FedGuard-IoT Orchestrator Boot Sequence Initiated.<br>
                     [SYSTEM] 4 Client connections established. Ready for aggregation.<br>
                 </div>
@@ -57,17 +110,38 @@
     </div>
 </div>
 {% endblock %}
+
 {% block extra_js %}
 <script>
     // Epsilon Math
     function updateMath() {
         const noise = parseFloat(document.getElementById('sim-noise').value);
         const rounds = parseInt(document.getElementById('sim-rounds').value);
-        // Simplified Epsilon simulation: Epsilon goes up with rounds (more exposure) and down with noise (more privacy)
         const epsilon = (Math.sqrt(rounds) / noise) * 0.0074;
         document.getElementById('eps-val').innerText = epsilon.toFixed(2);
     }
     updateMath();
+
+    // Update Node 1 Visual Status
+    function updateNodeStatus() {
+        const isAttack = document.getElementById('toggle-attack').checked;
+        const defense = document.getElementById('defense-mode').value;
+        const n1 = document.getElementById('node-1-box');
+
+        if (!isAttack) {
+            n1.style.borderColor = '#10b981';
+            n1.style.color = '#10b981';
+            n1.innerHTML = '<i class="bi bi-hdd-network me-1"></i> Node 1: Clean';
+        } else if (isAttack && defense === 'none') {
+            n1.style.borderColor = '#ef4444';
+            n1.style.color = '#ef4444';
+            n1.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i> Node 1: Poisoning';
+        } else {
+            n1.style.borderColor = '#f59e0b';
+            n1.style.color = '#f59e0b';
+            n1.innerHTML = '<i class="bi bi-shield-fill-exclamation me-1"></i> Node 1: Quarantined';
+        }
+    }
 
     // Chart Setup
     const ctx = document.getElementById('learningCurve').getContext('2d');
@@ -76,24 +150,50 @@
         data: {
             labels: [0],
             datasets: [
-                { label: 'Privacy FL Convergence', data: [30.09], borderColor: '#0ea5e9', backgroundColor: 'rgba(14, 165, 233, 0.2)', borderWidth: 3, fill: true, tension: 0.3 },
-                { label: 'Target Baseline (90.44%)', data: [90.44], borderColor: '#ef4444', borderWidth: 2, borderDash: [5, 5], fill: false }
+                {
+                    label: 'Global Model Accuracy (%)',
+                    data: [30.09],
+                    borderColor: '#0ea5e9',
+                    backgroundColor: 'rgba(14, 165, 233, 0.15)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.3
+                },
+                {
+                    label: 'Centralized Baseline (90.44%)',
+                    data: [90.44],
+                    borderColor: '#ef4444',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    fill: false
+                }
             ]
         },
-        options: { responsive: true, maintainAspectRatio: false, scales: { y: { min: 20, max: 100 } } }
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { y: { min: 20, max: 100 } }
+        }
     });
 
     function resetChart() {
         learningChart.data.labels = [0];
         learningChart.data.datasets[0].data = [30.09];
+        learningChart.data.datasets[0].borderColor = '#0ea5e9';
+        learningChart.data.datasets[0].backgroundColor = 'rgba(14, 165, 233, 0.15)';
         learningChart.data.datasets[1].data = [90.44];
         learningChart.update();
+        document.getElementById('sim-status-badge').className = 'badge bg-secondary me-2';
+        document.getElementById('sim-status-badge').innerText = 'Idle';
     }
 
-    function logMsg(msg, isError=false) {
+    function logMsg(msg, type='normal') {
         const term = document.getElementById('terminal');
         const time = new Date().toLocaleTimeString();
-        const color = isError ? '#ef4444' : '#10b981';
+        let color = '#10b981';
+        if (type === 'error') color = '#ef4444';
+        if (type === 'warn') color = '#f59e0b';
+        if (type === 'info') color = '#0ea5e9';
         term.innerHTML += `<span style="color: #6b7280">[${time}]</span> <span style="color: ${color}">${msg}</span><br>`;
         term.scrollTop = term.scrollHeight;
     }
@@ -101,33 +201,69 @@
     async function runSimulation() {
         const btn = document.getElementById('btn-train');
         const progressBar = document.getElementById('sim-progress');
+        const statusBadge = document.getElementById('sim-status-badge');
         const rounds = parseInt(document.getElementById('sim-rounds').value);
         const noise = parseFloat(document.getElementById('sim-noise').value);
-        
+        const isAttack = document.getElementById('toggle-attack').checked;
+        const defense = document.getElementById('defense-mode').value;
+
         btn.disabled = true;
         resetChart();
-        logMsg(`[FL_SERVER] Initiating FedAvg across 4 clients. Rounds: ${rounds}, Noise: ${noise}`);
 
-        let currentAcc = 30.09;
-        let targetAcc = 84.64 - (noise * 200) + 2; // Simulated utility trade-off formula
-        
-        for(let r = 1; r <= rounds; r++) {
-            await new Promise(r => setTimeout(r, 600)); 
-            currentAcc = currentAcc + ((targetAcc - currentAcc) * 0.35) + (Math.random() * 2 - 1);
-            
-            progressBar.style.width = Math.round((r / rounds) * 100) + '%';
-            
-            learningChart.data.labels.push(r);
-            learningChart.data.datasets[0].data.push(currentAcc.toFixed(2));
-            learningChart.data.datasets[1].data.push(90.44); 
-            learningChart.update();
-
-            logMsg(`[ROUND ${r}] Global Model Eval - Acc: ${currentAcc.toFixed(2)}% | Weights Clipped & Noised`);
+        // Style chart & badge based on scenario
+        if (isAttack && defense === 'none') {
+            learningChart.data.datasets[0].borderColor = '#ef4444';
+            learningChart.data.datasets[0].backgroundColor = 'rgba(239, 68, 68, 0.15)';
+            statusBadge.className = 'badge bg-danger me-2';
+            statusBadge.innerText = 'UNDER POISONING ATTACK';
+            logMsg(`[ALERT] Node 1 (Edge Cam) compromised! Label-flipping / Gradient Scaling active.`, 'error');
+        } else if (isAttack && defense === 'krum') {
+            learningChart.data.datasets[0].borderColor = '#10b981';
+            learningChart.data.datasets[0].backgroundColor = 'rgba(16, 185, 129, 0.15)';
+            statusBadge.className = 'badge bg-success me-2';
+            statusBadge.innerText = 'DEFENDED (MULTI-KRUM)';
+            logMsg(`[SECURITY] Multi-Krum & L2 Norm Clipping active. Monitoring client gradients...`, 'info');
+        } else {
+            statusBadge.className = 'badge bg-info text-dark me-2';
+            statusBadge.innerText = 'TRAINING (CLEAN)';
+            logMsg(`[FL_SERVER] Initiating FedAvg across 4 clients. Rounds: ${rounds}, Noise: ${noise}`, 'info');
         }
 
-        // --- ADD THIS TO SAVE TO DATABASE ---
+        let currentAcc = 30.09;
+        let targetAcc = 84.64 - (noise * 200) + 2;
+
+        if (isAttack && defense === 'none') {
+            targetAcc = 41.5; // Poisoned model collapses
+        } else if (isAttack && defense === 'krum') {
+            targetAcc = targetAcc - 1.8; // Slight overhead from dropping 1 of 4 nodes, but stays accurate
+        }
+
+        for (let r = 1; r <= rounds; r++) {
+            await new Promise(res => setTimeout(res, 550));
+
+            if (isAttack && defense === 'none') {
+                // Erratic collapse under poisoning
+                currentAcc = currentAcc + ((targetAcc - currentAcc) * 0.4) + (Math.random() * 8 - 4);
+                logMsg(`[ROUND ${r}] ⚠️ POISONED GRADIENT ACCEPTED from Node 1 (L2 Norm: ${(12 + Math.random()*5).toFixed(2)}) -> Global Acc: ${currentAcc.toFixed(2)}%`, 'error');
+            } else if (isAttack && defense === 'krum') {
+                // Quarantine outlier and converge normally
+                currentAcc = currentAcc + ((targetAcc - currentAcc) * 0.35) + (Math.random() * 1.5 - 0.75);
+                logMsg(`[ROUND ${r}] 🛡️ Anomaly on Node 1 (L2 Norm: ${(13 + Math.random()*4).toFixed(2)} > 2.0) -> Quarantined! Aggregating Nodes 2,3,4 -> Acc: ${currentAcc.toFixed(2)}%`, 'warn');
+            } else {
+                currentAcc = currentAcc + ((targetAcc - currentAcc) * 0.35) + (Math.random() * 2 - 1);
+                logMsg(`[ROUND ${r}] Global Model Eval - Acc: ${currentAcc.toFixed(2)}% | Weights Clipped & Noised`);
+            }
+
+            progressBar.style.width = Math.round((r / rounds) * 100) + '%';
+            learningChart.data.labels.push(r);
+            learningChart.data.datasets[0].data.push(currentAcc.toFixed(2));
+            learningChart.data.datasets[1].data.push(90.44);
+            learningChart.update();
+        }
+
+        // Save to SQLite Database
         try {
-            await fetch('/api/save_simulation', {
+            const res = await fetch('/api/save_simulation', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -137,17 +273,17 @@
                     accuracy: parseFloat(currentAcc.toFixed(2))
                 })
             });
-            logMsg(`[DB] Simulation metrics successfully logged to audit database.`);
+            if (res.ok) {
+                logMsg(`[DB] Simulation metrics successfully logged to SQLite audit database.`, 'info');
+            } else {
+                logMsg(`[DB_WARN] Metrics not saved (Admin role required to write FL logs).`, 'warn');
+            }
         } catch (e) {
-            logMsg(`[DB_ERROR] Failed to log metrics. Are you an Admin?`, true);
+            logMsg(`[DB_ERROR] Failed to connect to audit database.`, 'error');
         }
-        // ------------------------------------
 
         btn.disabled = false;
-        logMsg(`[SUCCESS] FL Session complete. Final Privacy Accuracy: ${currentAcc.toFixed(2)}%`);
-
-        btn.disabled = false;
-        logMsg(`[SUCCESS] FL Session complete. Final Privacy Accuracy: ${currentAcc.toFixed(2)}%`);
+        logMsg(`[COMPLETE] FL Session finished. Final Accuracy: ${currentAcc.toFixed(2)}%`);
     }
 </script>
 {% endblock %}
