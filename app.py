@@ -210,6 +210,99 @@ def intercept_traffic():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
 
+@app.route('/api/sample_csv')
+@login_required
+def download_sample_csv():
+    # Generates a 25-row sample CSV from your test set for easy demos
+    try:
+        df = pd.read_csv("processed_data/test_global.csv")
+        sample_df = df.sample(min(25, len(df)))
+        return Response(
+            sample_df.to_csv(index=False),
+            mimetype='text/csv',
+            headers={'Content-Disposition': 'attachment; filename=sample_iot_traffic.csv'}
+        )
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/batch_scan', methods=['POST'])
+@login_required
+def batch_scan():
+    if 'file' not in request.files:
+        return jsonify({"status": "error", "message": "No file uploaded."}), 400
+    
+    file = request.files['file']
+    if file.filename == '' or not file.filename.endswith('.csv'):
+        return jsonify({"status": "error", "message": "Please upload a valid .csv file."}), 400
+
+    try:
+        df = pd.read_csv(file)
+        if df.empty:
+            return jsonify({"status": "error", "message": "The uploaded CSV is empty."}), 400
+
+        # Drop target label column if present (e.g., from test_global.csv)
+        ref_df = pd.read_csv("processed_data/test_global.csv", nrows=1)
+        target_col = ref_df.columns[-1]
+        if target_col in df.columns:
+            features_df = df.drop(columns=[target_col])
+        else:
+            features_df = df
+
+        # Ensure numeric data only and cap at 500 rows for fast web response
+        features_df = features_df.select_dtypes(include=['number']).head(500)
+        X_tensor = torch.tensor(features_df.values, dtype=torch.float32)
+
+        model = IotIDSModel(input_dim=X_tensor.shape[1])
+        model.eval()
+
+        with torch.no_grad():
+            probs = model(X_tensor).squeeze().tolist()
+            if isinstance(probs, float):
+                probs = [probs]
+
+        results = []
+        attacks_count = 0
+        normal_count = 0
+        total_conf = 0.0
+
+        for idx, prob in enumerate(probs):
+            pred = 1 if prob >= 0.5 else 0
+            conf = round((prob if pred == 1 else (1 - prob)) * 100, 2)
+            label = "Attack" if pred == 1 else "Normal"
+            total_conf += conf
+
+            if pred == 1:
+                attacks_count += 1
+            else:
+                normal_count += 1
+
+            results.append({
+                "row_id": idx + 1,
+                "prediction": label,
+                "confidence": conf
+            })
+
+            # Log up to 5 detected threats to SQLite Audit Logs
+            if pred == 1 and attacks_count <= 5:
+                db.session.add(InferenceLog(
+                    user_id=current_user.id,
+                    prediction="Attack",
+                    confidence=conf
+                ))
+
+        db.session.commit()
+
+        return jsonify({
+            "status": "success",
+            "total": len(results),
+            "attacks": attacks_count,
+            "normal": normal_count,
+            "avg_confidence": round(total_conf / len(results), 2),
+            "results": results
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 @app.route('/api/save_simulation', methods=['POST'])
 @login_required
 def save_simulation():

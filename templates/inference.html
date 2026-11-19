@@ -52,6 +52,74 @@
         </div>
     </div>
 </div>
+
+<!-- Batch CSV Traffic Scanner -->
+<div class="row g-4 mt-1 mb-4">
+    <div class="col-12">
+        <div class="card card-custom">
+            <div class="card-header-custom d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <span><i class="bi bi-file-earmark-spreadsheet-fill me-2 text-info"></i> Batch CSV Traffic Scanner & Incident Reporter</span>
+                <a href="/api/sample_csv" class="btn btn-sm btn-outline-info fw-bold">
+                    <i class="bi bi-download me-1"></i> Download Sample CSV
+                </a>
+            </div>
+            <div class="card-body">
+                <div class="row g-3 align-items-center mb-3">
+                    <div class="col-md-8">
+                        <input type="file" id="csv-file-input" class="form-control" accept=".csv">
+                    </div>
+                    <div class="col-md-4">
+                        <button id="btn-batch-scan" class="btn btn-info w-100 fw-bold" onclick="runBatchScan()">
+                            <i class="bi bi-search me-1"></i> Scan Traffic Batch
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Batch Results Area (Hidden until scan completes) -->
+                <div id="batch-results-area" class="d-none">
+                    <div class="row g-3 mb-3 text-center">
+                        <div class="col-md-3">
+                            <div class="p-2 rounded" style="border: 1px solid var(--border-color);">
+                                <div class="small text-muted fw-bold">TOTAL FLOWS</div>
+                                <div id="b-total" class="fs-4 fw-bold text-info">0</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="p-2 rounded" style="border: 1px solid #10b981;">
+                                <div class="small text-success fw-bold">NORMAL TRAFFIC</div>
+                                <div id="b-normal" class="fs-4 fw-bold text-success">0</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="p-2 rounded" style="border: 1px solid #ef4444;">
+                                <div class="small text-danger fw-bold">ATTACKS DETECTED</div>
+                                <div id="b-attacks" class="fs-4 fw-bold text-danger">0</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 d-flex align-items-center justify-content-center">
+                            <button class="btn btn-outline-success w-100 h-100 fw-bold" onclick="exportBatchReport()">
+                                <i class="bi bi-file-earmark-arrow-down me-1"></i> Export Report (.csv)
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive" style="max-height: 260px; overflow-y: auto;">
+                        <table class="table table-hover align-middle mb-0" style="color: var(--text-main);">
+                            <thead>
+                                <tr class="text-muted small">
+                                    <th>Flow #</th>
+                                    <th>AI Classification</th>
+                                    <th>Confidence Score</th>
+                                </tr>
+                            </thead>
+                            <tbody id="batch-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 {% block extra_js %}
 <script>
@@ -100,5 +168,73 @@
             document.getElementById('ram-bar').style.width = data.ram + '%';
         } catch (e) { console.error("Hardware monitor offline."); }
     }, 2000);
+
+    let lastBatchResults = [];
+
+    async function runBatchScan() {
+        const fileInput = document.getElementById('csv-file-input');
+        const btn = document.getElementById('btn-batch-scan');
+        const resultsArea = document.getElementById('batch-results-area');
+        const tbody = document.getElementById('batch-table-body');
+
+        if (!fileInput.files.length) {
+            alert('Please select a CSV file first (or click "Download Sample CSV" to test).');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Scanning...';
+
+        try {
+            const res = await fetch('/api/batch_scan', { method: 'POST', body: formData });
+            const data = await res.json();
+
+            if (data.status === 'success') {
+                lastBatchResults = data.results;
+                document.getElementById('b-total').innerText = data.total;
+                document.getElementById('b-normal').innerText = data.normal;
+                document.getElementById('b-attacks').innerText = data.attacks;
+
+                tbody.innerHTML = '';
+                data.results.forEach(row => {
+                    const badge = row.prediction === 'Attack'
+                        ? '<span class="badge bg-danger">ATTACK</span>'
+                        : '<span class="badge bg-success">NORMAL</span>';
+                    tbody.innerHTML += `
+                        <tr style="border-color: var(--border-color);">
+                            <td class="text-muted">#${row.row_id}</td>
+                            <td>${badge}</td>
+                            <td>${row.confidence}%</td>
+                        </tr>`;
+                });
+                resultsArea.classList.remove('d-none');
+            } else {
+                alert('Scan Error: ' + data.message);
+            }
+        } catch (err) {
+            alert('Failed to scan file: ' + err);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-search me-1"></i> Scan Traffic Batch';
+        }
+    }
+
+    function exportBatchReport() {
+        if (!lastBatchResults.length) return;
+        let csv = 'Flow_ID,Classification,Confidence_Percent\n';
+        lastBatchResults.forEach(r => {
+            csv += `${r.row_id},${r.prediction},${r.confidence}\n`;
+        });
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'fedguard_batch_incident_report.csv';
+        a.click();
+        window.URL.revokeObjectURL(url);
+    }
 </script>
 {% endblock %}
