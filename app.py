@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, request, redirect, url_for, flash
+from flask import Flask, render_template, jsonify, request, redirect, url_for, flash, Response
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -8,6 +8,8 @@ import torch.nn as nn
 from datetime import datetime
 import os
 import psutil
+import csv
+import io
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'super_secret_fedguard_key_2026'
@@ -25,6 +27,7 @@ class User(UserMixin, db.Model):
     password = db.Column(db.String(150), nullable=False)
     role = db.Column(db.String(50), default='user') # 'admin' or 'user'
     inference_logs = db.relationship('InferenceLog', backref='user', lazy=True)
+    simulation_logs = db.relationship('SimulationLog', backref='user', lazy=True)
 
 class InferenceLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -64,6 +67,10 @@ class IotIDSModel(nn.Module):
 # --- AUTHENTICATION ROUTES ---
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
+    # If already logged in, redirect to dashboard
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
@@ -86,6 +93,10 @@ def signup():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    # If already logged in, redirect to dashboard
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
@@ -97,6 +108,29 @@ def login():
         else:
             flash('Login failed. Check username and password.', 'danger')
     return render_template('login.html')
+
+@app.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+
+    if request.method == 'POST':
+        username = request.form.get('username')
+        new_password = request.form.get('new_password')
+        
+        # Check if the user exists in the database
+        user = User.query.filter_by(username=username).first()
+        
+        if user:
+            # Hash the new password and save it
+            user.password = generate_password_hash(new_password, method='pbkdf2:sha256')
+            db.session.commit()
+            flash('Password successfully reset. You can now log in with your new credentials.', 'success')
+            return redirect(url_for('login'))
+        else:
+            flash('Username not found in the system.', 'danger')
+            
+    return render_template('forgot_password.html')
 
 @app.route('/logout')
 @login_required
@@ -193,6 +227,92 @@ def save_simulation():
     db.session.add(new_sim)
     db.session.commit()
     return jsonify({"status": "success"})
+
+# --- AUDIT LOGS & ADMIN PANEL ROUTES ---
+@app.route('/audit')
+@login_required
+def audit_panel():
+    if current_user.role == 'admin':
+        inference_logs = InferenceLog.query.order_by(InferenceLog.timestamp.desc()).limit(50).all()
+        users = User.query.all()
+    else:
+        inference_logs = InferenceLog.query.filter_by(user_id=current_user.id).order_by(InferenceLog.timestamp.desc()).limit(50).all()
+        users = []
+
+    sim_logs = SimulationLog.query.order_by(SimulationLog.timestamp.desc()).limit(25).all()
+    
+    # Summary KPIs
+    total_packets = InferenceLog.query.count() if current_user.role == 'admin' else InferenceLog.query.filter_by(user_id=current_user.id).count()
+    total_attacks = InferenceLog.query.filter_by(prediction='Attack').count() if current_user.role == 'admin' else InferenceLog.query.filter_by(user_id=current_user.id, prediction='Attack').count()
+    total_sims = SimulationLog.query.count()
+    total_users = User.query.count()
+
+    return render_template(
+        'audit.html',
+        inference_logs=inference_logs,
+        sim_logs=sim_logs,
+        users=users,
+        stats={
+            'packets': total_packets,
+            'attacks': total_attacks,
+            'sims': total_sims,
+            'users': total_users
+        }
+    )
+
+@app.route('/admin/toggle_role/<int:user_id>', methods=['POST'])
+@login_required
+def toggle_role(user_id):
+    if current_user.role != 'admin':
+        flash('Unauthorized: Admin privileges required.', 'danger')
+        return redirect(url_for('audit_panel'))
+    
+    if user_id == current_user.id:
+        flash('You cannot change your own role.', 'warning')
+        return redirect(url_for('audit_panel'))
+
+    user = User.query.get_or_404(user_id)
+    user.role = 'admin' if user.role == 'user' else 'user'
+    db.session.commit()
+    flash(f"Updated {user.username}'s role to {user.role.title()}.", 'success')
+    return redirect(url_for('audit_panel'))
+
+@app.route('/admin/delete_user/<int:user_id>', methods=['POST'])
+@login_required
+def delete_user(user_id):
+    if current_user.role != 'admin':
+        flash('Unauthorized: Admin privileges required.', 'danger')
+        return redirect(url_for('audit_panel'))
+
+    if user_id == current_user.id:
+        flash('You cannot delete your own active account.', 'warning')
+        return redirect(url_for('audit_panel'))
+
+    user = User.query.get_or_404(user_id)
+    InferenceLog.query.filter_by(user_id=user.id).delete()
+    SimulationLog.query.filter_by(user_id=user.id).delete()
+    db.session.delete(user)
+    db.session.commit()
+    flash(f"Revoked access and removed user '{user.username}'.", 'info')
+    return redirect(url_for('audit_panel'))
+
+@app.route('/api/export_logs')
+@login_required
+def export_logs():
+    logs = InferenceLog.query.order_by(InferenceLog.timestamp.desc()).all() if current_user.role == 'admin' else InferenceLog.query.filter_by(user_id=current_user.id).order_by(InferenceLog.timestamp.desc()).all()
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Log ID', 'Analyst', 'Classification', 'Confidence (%)', 'Timestamp (UTC)'])
+    
+    for log in logs:
+        writer.writerow([log.id, log.user.username, log.prediction, log.confidence, log.timestamp.strftime('%Y-%m-%d %H:%M:%S')])
+        
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': 'attachment; filename=fedguard_audit_report.csv'}
+    )
 
 if __name__ == '__main__':
     with app.app_context():

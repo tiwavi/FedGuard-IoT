@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% block content %}
+<!-- Summary KPI Row -->
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card card-custom p-3 h-100">
+            <div class="text-muted small fw-bold">PACKETS AUDITED</div>
+            <div class="stat-val text-info">{{ stats.packets }}</div>
+            <div class="small text-muted">Stored in SQLite</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-custom p-3 h-100">
+            <div class="text-muted small fw-bold">THREATS DETECTED</div>
+            <div class="stat-val text-danger">{{ stats.attacks }}</div>
+            <div class="small text-muted">Flagged as Malicious</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-custom p-3 h-100">
+            <div class="text-muted small fw-bold">FL SESSIONS LOGGED</div>
+            <div class="stat-val text-warning">{{ stats.sims }}</div>
+            <div class="small text-muted">Privacy-Preserving Runs</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-custom p-3 h-100">
+            <div class="text-muted small fw-bold">REGISTERED NODES</div>
+            <div class="stat-val text-success">{{ stats.users }}</div>
+            <div class="small text-muted">Active RBAC Identities</div>
+        </div>
+    </div>
+</div>
+
+<!-- Packet Inference Audit Table -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-7">
+        <div class="card card-custom h-100">
+            <div class="card-header-custom d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-journal-text text-info me-2"></i> Packet Inference Audit Log</span>
+                <a href="/api/export_logs" class="btn btn-sm btn-outline-info fw-bold">
+                    <i class="bi bi-download me-1"></i> Export CSV
+                </a>
+            </div>
+            <div class="card-body table-responsive" style="max-height: 360px; overflow-y: auto;">
+                <table class="table table-hover align-middle mb-0" style="color: var(--text-main);">
+                    <thead>
+                        <tr class="text-muted small">
+                            <th>ID</th>
+                            <th>Analyst</th>
+                            <th>Result</th>
+                            <th>Confidence</th>
+                            <th>Timestamp (UTC)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in inference_logs %}
+                        <tr style="border-color: var(--border-color);">
+                            <td class="text-muted">#{{ log.id }}</td>
+                            <td class="fw-bold">{{ log.user.username }}</td>
+                            <td>
+                                {% if log.prediction == 'Attack' %}
+                                <span class="badge bg-danger">ATTACK</span>
+                                {% else %}
+                                <span class="badge bg-success">NORMAL</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ log.confidence }}%</td>
+                            <td class="small text-muted">{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-4">No packet interceptions logged yet.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- FL Simulation History Table -->
+    <div class="col-lg-5">
+        <div class="card card-custom h-100">
+            <div class="card-header-custom">
+                <i class="bi bi-cpu-fill text-warning me-2"></i> FL Orchestrator History
+            </div>
+            <div class="card-body table-responsive" style="max-height: 360px; overflow-y: auto;">
+                <table class="table table-hover align-middle mb-0" style="color: var(--text-main);">
+                    <thead>
+                        <tr class="text-muted small">
+                            <th>Admin</th>
+                            <th>Rounds</th>
+                            <th>Noise (σ)</th>
+                            <th>ε Budget</th>
+                            <th>Accuracy</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for sim in sim_logs %}
+                        <tr style="border-color: var(--border-color);">
+                            <td class="fw-bold">{{ sim.user.username }}</td>
+                            <td>{{ sim.rounds }}</td>
+                            <td>{{ sim.noise }}</td>
+                            <td><span class="badge bg-info text-dark">ε {{ sim.epsilon }}</span></td>
+                            <td class="text-success fw-bold">{{ sim.final_accuracy }}%</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-4">No federated training runs logged yet.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Admin-Only User & RBAC Management -->
+{% if current_user.role == 'admin' %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card card-custom border-warning">
+            <div class="card-header-custom text-warning">
+                <i class="bi bi-shield-exclamation me-2"></i> Admin Access Control (RBAC User Management)
+            </div>
+            <div class="card-body table-responsive">
+                <table class="table table-hover align-middle mb-0" style="color: var(--text-main);">
+                    <thead>
+                        <tr class="text-muted small">
+                            <th>User ID</th>
+                            <th>Username</th>
+                            <th>Current Role</th>
+                            <th class="text-end">Administrative Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for u in users %}
+                        <tr style="border-color: var(--border-color);">
+                            <td class="text-muted">#{{ u.id }}</td>
+                            <td class="fw-bold">
+                                {{ u.username }}
+                                {% if u.id == current_user.id %}
+                                <span class="badge bg-secondary ms-1">You</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if u.role == 'admin' %}
+                                <span class="badge bg-warning text-dark">System Administrator</span>
+                                {% else %}
+                                <span class="badge bg-primary">Standard Analyst</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                {% if u.id != current_user.id %}
+                                <form action="/admin/toggle_role/{{ u.id }}" method="POST" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-info me-2">
+                                        {% if u.role == 'admin' %}Demote to Analyst{% else %}Promote to Admin{% endif %}
+                                    </button>
+                                </form>
+                                <form action="/admin/delete_user/{{ u.id }}" method="POST" class="d-inline" onsubmit="return confirm('Revoke access for {{ u.username }}?');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Revoke Access</button>
+                                </form>
+                                {% else %}
+                                <span class="small text-muted">Active Session</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
