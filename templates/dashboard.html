@@ -88,4 +88,117 @@
     const mkChart = (id, att, norm) => new Chart(document.getElementById(id), { type: 'doughnut', data: { labels: ['Attack', 'Normal'], datasets: [{ data: [att, norm], backgroundColor: ['#ef4444', '#10b981'], borderWidth: 0 }] }, options: { cutout: '75%', plugins: { legend: { display: false } } } });
     mkChart('c1', 73.8, 26.2); mkChart('c2', 0, 100); mkChart('c3', 0, 100); mkChart('c4', 42.4, 57.6);
 </script>
+
+<!-- Model Evaluation: Confusion Matrix & F1-Score Panel -->
+<div class="row g-4 mt-1 mb-4">
+    <div class="col-12">
+        <div class="card card-custom">
+            <div class="card-header-custom d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <span><i class="bi bi-grid-3x3-gap-fill me-2 text-info"></i> IDS Evaluation Metrics & Confusion Matrix</span>
+                <div class="d-flex align-items-center">
+                    <label for="model-metric-select" class="small text-muted me-2 mb-0 text-uppercase">Inspect Model:</label>
+                    <select id="model-metric-select" class="form-select form-select-sm" style="width: auto;" onchange="updateMetrics()">
+                        <option value="privacy_fl" selected>Privacy-Preserving FL (84.64%)</option>
+                        <option value="fedavg">Standard FedAvg (81.82%)</option>
+                        <option value="centralized">Centralized Baseline (90.44%)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row g-4 align-items-center">
+                    <!-- 2x2 Confusion Matrix -->
+                    <div class="col-lg-6">
+                        <h6 class="text-muted small fw-bold text-uppercase mb-3 text-center">Confusion Matrix (Global Test Set: 10,000 Flows)</h6>
+                        <div class="row g-2 text-center align-items-center">
+                            <div class="col-3"></div>
+                            <div class="col-4 small fw-bold text-muted">Predicted Normal</div>
+                            <div class="col-5 small fw-bold text-muted">Predicted Attack</div>
+
+                            <!-- Actual Normal Row -->
+                            <div class="col-3 small fw-bold text-muted text-end pe-2">Actual Normal</div>
+                            <div class="col-4">
+                                <div class="p-3 rounded" style="background: rgba(16, 185, 129, 0.15); border: 1px solid #10b981;">
+                                    <div class="small text-success fw-bold">True Negative (TN)</div>
+                                    <div id="cm-tn" class="fs-4 fw-bold text-light">4,312</div>
+                                </div>
+                            </div>
+                            <div class="col-5">
+                                <div class="p-3 rounded" style="background: rgba(245, 158, 11, 0.15); border: 1px solid #f59e0b;">
+                                    <div class="small text-warning fw-bold">False Positive (FP)</div>
+                                    <div id="cm-fp" class="fs-4 fw-bold text-light">688</div>
+                                </div>
+                            </div>
+
+                            <!-- Actual Attack Row -->
+                            <div class="col-3 small fw-bold text-muted text-end pe-2">Actual Attack</div>
+                            <div class="col-4">
+                                <div class="p-3 rounded" style="background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444;">
+                                    <div class="small text-danger fw-bold">False Negative (FN)</div>
+                                    <div id="cm-fn" class="fs-4 fw-bold text-light">848</div>
+                                </div>
+                            </div>
+                            <div class="col-5">
+                                <div class="p-3 rounded" style="background: rgba(16, 185, 129, 0.15); border: 1px solid #10b981;">
+                                    <div class="small text-success fw-bold">True Positive (TP)</div>
+                                    <div id="cm-tp" class="fs-4 fw-bold text-light">4,152</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Classification Metrics -->
+                    <div class="col-lg-6">
+                        <h6 class="text-muted small fw-bold text-uppercase mb-3">Classification Performance</h6>
+
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between small fw-bold mb-1">
+                                <span class="text-light">Precision <span class="text-muted fw-normal">(Attack Prediction Accuracy)</span></span>
+                                <span id="val-precision" class="text-info">85.79%</span>
+                            </div>
+                            <div class="progress" style="height: 8px; background-color: rgba(100,116,139,0.2);">
+                                <div id="bar-precision" class="progress-bar bg-info" style="width: 85.79%; transition: width 0.5s;"></div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between small fw-bold mb-1">
+                                <span class="text-light">Recall <span class="text-muted fw-normal">(Threat Detection Rate)</span></span>
+                                <span id="val-recall" class="text-primary">83.04%</span>
+                            </div>
+                            <div class="progress" style="height: 8px; background-color: rgba(100,116,139,0.2);">
+                                <div id="bar-recall" class="progress-bar bg-primary" style="width: 83.04%; transition: width 0.5s;"></div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between small fw-bold mb-1">
+                                <span class="text-light">F1-Score <span class="text-muted fw-normal">(Harmonic Mean)</span></span>
+                                <span id="val-f1" class="text-success">84.39%</span>
+                            </div>
+                            <div class="progress" style="height: 8px; background-color: rgba(100,116,139,0.2);">
+                                <div id="bar-f1" class="progress-bar bg-success" style="width: 84.39%; transition: width 0.5s;"></div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between small fw-bold mb-1">
+                                <span class="text-light">False Positive Rate (FPR) <span class="text-muted fw-normal">(Lower is Better)</span></span>
+                                <span id="val-fpr" class="text-warning">13.76%</span>
+                            </div>
+                            <div class="progress" style="height: 8px; background-color: rgba(100,116,139,0.2);">
+                                <div id="bar-fpr" class="progress-bar bg-warning" style="width: 13.76%; transition: width 0.5s;"></div>
+                            </div>
+                        </div>
+
+                        <div id="metric-note" class="small text-muted p-2 rounded" style="border: 1px solid var(--border-color);">
+                            <i class="bi bi-info-circle text-info me-1"></i>
+                            <strong>Privacy-Utility Balance:</strong> Maintains an 84.39% F1-Score while injecting Gaussian noise to prevent gradient inversion attacks.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
